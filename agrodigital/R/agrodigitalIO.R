@@ -14,7 +14,6 @@
 #   Test Package:              'Ctrl + Shift + T'
 
 
-
 set_token <- function(token) {
   if (is.null(token) || !nzchar(token)) {
     stop("API token is missing. Please enter a valid token.")
@@ -80,44 +79,92 @@ download_data <- function(station_id) {
 #'
 #' @param field_id The ID of the field to download data for.
 #' @param sources Vector of source types to filter by.
+#' @param type Type string to filter eg. 'NDVI'.
 #' @param date_start Optional start date to filter by.
 #' @param date_end Optional end date to filter by.
 #' @return A data frame containing the downloaded data.
 #' @export
-query_rasters <- function(field_id, sources, date_start = NULL, date_end = NULL) {
+query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, date_end = NULL) {
   # Check if API token is set
   check_api_token()
+  cat("Downloading .")
 
   # Base URL for the API
   base_url <- "https://agrodigital.io/api/rasters"
+  base_url_index <- "https://agrodigital.io/api/indexes"
 
   # Prepare the URL
   url <- paste0(base_url, "?field=", field_id)
+  url_index <- paste0(base_url_index, "?field=", field_id)
 
   # Append sources to the URL
   for (source in sources) {
     url <- paste0(url, "&sources[]=", source)
+    url_index <- paste0(url_index, "&sources[]=", source)
   }
+  cat(".")
 
   # Get the API token
   token <- get_api_token()
+  cat(".")
 
   # Send a GET request to the API
   response <- httr::GET(url, add_headers(Authorization = paste0("Token ", token)))
+  cat(".")
 
   # Check the status of the response
   if (httr::http_error(response)) {
     print(response)
     stop("An error occurred while downloading the data.")
   }
+  cat(".")
 
   # Parse the response as JSON
   data <- httr::content(response, as = "parsed")
+  cat(".")
 
   # Convert the data to a data frame
-  df <- as.data.frame(data)
+  df <- as.data.frame(matrix(unlist(data), nrow=length(data), byrow=T))
+  cat(".")
 
-  # If date filtering parameters are provided, filter the data frame
+  # Rename the columns
+  colnames(df) <- names(data[[1]])
+  cat(".")
+
+  # Get the index data
+  response_index <- httr::GET(url_index, add_headers(Authorization = paste0("Token ", token)))
+  cat(".")
+
+  # Check the status of the response
+  if (httr::http_error(response_index)) {
+    print(response_index)
+    stop("An error occurred while downloading the index data.")
+  }
+  cat(".")
+
+  # Parse the response as JSON
+  data_index <- httr::content(response_index, as = "parsed")
+  cat(".")
+
+  # Convert the data to a data frame
+  df_index <- as.data.frame(matrix(unlist(data_index), nrow=length(data_index), byrow=T))
+  cat(".")
+
+  # Rename the columns
+  colnames(df_index) <- names(data_index[[1]])
+  cat(".")
+
+  # Convert the 'date' columns to Date format
+  df$date <- lubridate::ymd(df$date)
+  df_index$date <- lubridate::ymd(df_index$date)
+  cat(".")
+  # Keep only the rows in df where the date is also present in df_index
+  df <- df[df$date %in% df_index$date, ]
+
+
+  if (!is.null(type)) {
+    df <- df[df$type==type,]
+  }
   if (!is.null(date_start) || !is.null(date_end)) {
     # Convert the 'date' column to Date format
     df$date <- lubridate::ymd(df$date)
@@ -126,11 +173,13 @@ query_rasters <- function(field_id, sources, date_start = NULL, date_end = NULL)
     if (!is.null(date_start)) {
       df <- df[df$date >= lubridate::ymd(date_start),]
     }
+
     if (!is.null(date_end)) {
       df <- df[df$date <= lubridate::ymd(date_end),]
     }
+    cat(".")
   }
-
+  cat(".OK!\n")
   return(df)
 }
 
@@ -160,20 +209,23 @@ load_geotiff <- function(url) {
 #' @return A list of matrices, one for each raster in the input.
 #' @export
 download_rasters <- function(rasters) {
-  # Initialize an empty list to store the matrices
-  matrices <- list()
+  # Get the number of cores
+  num_cores <- parallel::detectCores()
 
-  # Loop over the rows of the raster data frame
-  for (i in 1:nrow(rasters)) {
-    # Get the URL of the current raster
-    url <- rasters$url[i]
+  # Create a cluster of workers
+  cl <- parallel::makeCluster(num_cores)
 
-    # Load the GeoTIFF file and convert it to a matrix
-    m <- load_geotiff(url)
+  # Export the load_geotiff function and the rasters$url variable to the workers
+  parallel::clusterExport(cl, list("load_geotiff", "rasters"))
 
-    # Add the matrix to the list
-    matrices[[i]] <- m
-  }
+  # Download the rasters in parallel
+  matrices <- parallel::parLapply(cl, rasters$url, load_geotiff)
 
-  return(matrices)
+  # Stop the cluster of workers
+  parallel::stopCluster(cl)
+
+  # Add the matrices as a new column in the rasters dataframe
+  rasters$matrix <- matrices
+
+  return(rasters)
 }

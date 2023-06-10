@@ -1,4 +1,4 @@
-Package: agrodigital
+Package: agrodigitalIO
 Type: Package
 Title: R package for agrodigital.io API
 Version: 0.1.0
