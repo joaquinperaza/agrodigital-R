@@ -1,0 +1,19 @@
+---
+title: "Github_agrodigital_io"
+output: html_document
+date: "2023-06-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("devtools")
+library(devtools)
+devtools::install_github("joaquinperaza/agrodigital-R/agrodigital")
+#press 1 to download all versions
+library(agrodigitalIO)
+
+```
+
