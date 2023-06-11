@@ -230,6 +230,39 @@ download_rasters <- function(rasters) {
   return(rasters)
 }
 
+query_variables <- function() {
+  # Get the API token
+  token <- get_api_token()
+
+  # Base URL for the API
+  base_url <- "https://agrodigital.io/api/iot/variables/"
+
+  # Send a GET request to the API
+  response <- httr::GET(base_url, add_headers(Authorization = paste0("Token ", token)))
+
+  # Check the status of the response
+  if (httr::http_error(response)) {
+    print(response)
+    stop("An error occurred while trying to query the variables.")
+  }
+
+  # Parse the response as JSON
+  data <- httr::content(response, as = "parsed")
+
+  # Convert the data to a data frame
+  df <- do.call(rbind, lapply(data, function(x) {
+    data.frame(
+      id = as.numeric(x$id),
+      name = as.character(x$name),
+      unit = as.character(x$unit),
+      stringsAsFactors = FALSE
+    )
+  }))
+
+  return(df)
+}
+
+
 query_iot_stations <- function() {
   # Check if API token is set
   check_api_token()
@@ -272,7 +305,7 @@ query_iot_stations <- function() {
   return(df)
 }
 
-query_iot_data <- function(station_id) {
+get_iot_data <- function(station_id) {
   # Get the API token
   token <- get_api_token()
 
@@ -302,6 +335,17 @@ query_iot_data <- function(station_id) {
   # Reset row names
   rownames(df) <- NULL
 
+  # Get variable data
+  variables <- query_variables()
+
+  # Join variable data to the measurements dataframe
+  df <- merge(df, variables, by.x = "variable", by.y = "id", all.x = TRUE)
+
+  # Rename columns
+  names(df)[names(df) == "name"] <- "variable_name"
+  names(df)[names(df) == "unit"] <- "variable_unit"
+
   return(df)
 }
+
 
