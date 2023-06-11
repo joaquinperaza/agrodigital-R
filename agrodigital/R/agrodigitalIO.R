@@ -230,7 +230,7 @@ download_rasters <- function(rasters) {
   return(rasters)
 }
 
-query_stations <- function() {
+query_iot_stations <- function() {
   # Check if API token is set
   check_api_token()
 
@@ -265,6 +265,39 @@ query_stations <- function() {
   df$location <- NULL
   df$last_data <- NULL
   df$type <- NULL
+
+  # Reset row names
+  rownames(df) <- NULL
+
+  return(df)
+}
+
+query_iot_data <- function(station_id) {
+  # Get the API token
+  token <- get_api_token()
+
+  # Base URL for the API
+  base_url <- "https://agrodigital.io/api/iot/data/"
+
+  # Prepare the URL
+  url <- paste0(base_url, "?station=", station_id)
+
+  # Send a GET request to the API
+  response <- httr::GET(url, add_headers(Authorization = paste0("Token ", token)))
+
+  # Check the status of the response
+  if (httr::http_error(response)) {
+    print(response)
+    stop("An error occurred while downloading the data.")
+  }
+
+  # Parse the response as JSON
+  data <- httr::content(response, as = "parsed")
+
+  # Convert the data to a data frame
+  df <- do.call(rbind, lapply(data, function(x) {
+    as.data.frame(t(unlist(x)), stringsAsFactors = FALSE)
+  }))
 
   # Reset row names
   rownames(df) <- NULL
