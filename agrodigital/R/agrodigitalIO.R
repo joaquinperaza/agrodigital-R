@@ -170,7 +170,6 @@ query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, dat
 
   # Rename the columns
   colnames(df_index) <- names(data_index[[1]])
-  colnames(df_index2) <- names(data_index2[[1]])
   cat(".")
 
   # Convert the 'date' columns to Date format
