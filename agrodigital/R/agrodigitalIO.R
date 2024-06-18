@@ -210,6 +210,7 @@ query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, dat
 #' @return A matrix representation of the GeoTIFF data.
 #' @export
 load_geotiff <- function(url) {
+  m <- as.matrix(0)
   tryCatch(
         #try to do this
         {
@@ -222,14 +223,13 @@ load_geotiff <- function(url) {
 
           # Convert the raster to a matrix
           m <- raster::as.matrix(r)
-
-          return(m)
         },
         #if an error occurs, tell me the error
         error=function(e) {
-            return as.matrix(0)
+            m <- as.matrix(0) 
         }
     )
+    return(m)
 }
 
 
@@ -240,7 +240,7 @@ load_geotiff <- function(url) {
 #' @export
 download_rasters <- function(rasters) {
   # Get the number of cores
-  num_cores <- parallel::detectCores()
+  num_cores <- (parallel::detectCores() - 1)
 
   # Create a cluster of workers
   cl <- parallel::makeCluster(num_cores)
