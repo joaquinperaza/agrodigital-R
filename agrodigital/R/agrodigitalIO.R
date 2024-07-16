@@ -133,10 +133,24 @@ query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, dat
   data2 <- httr::content(response2, as = "parsed")
   cat(".")
 
+  # Convert the parsed content to a list
+  data <- lapply(data, function(x) if (is.null(x)) NA else x)
+  data2 <- lapply(data2, function(x) if (is.null(x)) NA else x)
+
   # Convert the data to a data frame
-  df <- as.data.frame(matrix(unlist(data), nrow=length(data), byrow=T))
-  cat(".")
-  df2 <- as.data.frame(matrix(unlist(data2), nrow=length(data2), byrow=T))
+
+  # Helper function to convert JSON to data frame and handle null values
+  json_to_df <- function(json) {
+    data_list <- lapply(json, function(x) {
+      x[sapply(x, is.null)] <- NA  # Replace null with NA
+      as.data.frame(x, stringsAsFactors = FALSE)
+    })
+    do.call(rbind, data_list)
+  }
+  
+  # Convert to data frames
+  df <- json_to_df(data)
+  df2 <- json_to_df(data2)
   cat(".")
 
   # Rename the columns
@@ -152,6 +166,7 @@ query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, dat
 
   if (!is.null(type)) {
     df <- df[df$type==type,]
+    df2 <- df2[df2$type==type,]
   }
   if (!is.null(date_start) || !is.null(date_end)) {
     # Convert the 'date' column to Date format
@@ -217,7 +232,7 @@ download_rasters <- function(rasters) {
 
   # Export the load_geotiff function and the rasters$url variable to the workers
   parallel::clusterExport(cl, list("load_geotiff", "rasters"))
-
+  print("Downloading rasters in cluster mode...")
   # Download the rasters in parallel
   matrices <- parallel::parLapply(cl, rasters$url, load_geotiff)
 
