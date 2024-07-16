@@ -91,17 +91,17 @@ query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, dat
 
   # Base URL for the API
   base_url <- "https://agrodigital.io/api/rasters"
-  base_url_index <- "https://agrodigital.io/api/indexes"
 
   # Prepare the URL
   url <- paste0(base_url, "?field=", field_id)
-  url_index <- paste0(base_url_index, "?field=", field_id)
 
   # Append sources to the URL
   for (source in sources) {
     url <- paste0(url, "&sources[]=", source)
-    url_index <- paste0(url_index, "&sources[]=", source)
   }
+
+  url_d <- paste0(url, "&discard=true")
+
   cat(".")
 
   # Get the API token
@@ -112,9 +112,17 @@ query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, dat
   response <- httr::GET(url, add_headers(Authorization = paste0("Token ", token)))
   cat(".")
 
+  # Send a GET request to the API
+  response2 <- httr::GET(url_d, add_headers(Authorization = paste0("Token ", token)))
+  cat(".")
+
   # Check the status of the response
   if (httr::http_error(response)) {
     print(response)
+    stop("An error occurred while downloading the data.")
+  }
+  if (httr::http_error(response2)) {
+    print(response2)
     stop("An error occurred while downloading the data.")
   }
   cat(".")
@@ -122,45 +130,26 @@ query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, dat
   # Parse the response as JSON
   data <- httr::content(response, as = "parsed")
   cat(".")
+  data2 <- httr::content(response2, as = "parsed")
+  cat(".")
 
   # Convert the data to a data frame
   df <- as.data.frame(matrix(unlist(data), nrow=length(data), byrow=T))
   cat(".")
+  df2 <- as.data.frame(matrix(unlist(data2), nrow=length(data2), byrow=T))
+  cat(".")
 
   # Rename the columns
   colnames(df) <- names(data[[1]])
+  colnames(df2) <- names(data2[[1]])
   cat(".")
 
-  # Get the index data
-  response_index <- httr::GET(url_index, add_headers(Authorization = paste0("Token ", token)))
-  cat(".")
-
-  # Check the status of the response
-  if (httr::http_error(response_index)) {
-    print(response_index)
-    stop("An error occurred while downloading the index data.")
-  }
-  cat(".")
-
-  # Parse the response as JSON
-  data_index <- httr::content(response_index, as = "parsed")
-  cat(".")
-
-  # Convert the data to a data frame
-  df_index <- as.data.frame(matrix(unlist(data_index), nrow=length(data_index), byrow=T))
-  cat(".")
-
-  # Rename the columns
-  colnames(df_index) <- names(data_index[[1]])
-  cat(".")
 
   # Convert the 'date' columns to Date format
   df$date <- lubridate::ymd(df$date)
-  df_index$date <- lubridate::ymd(df_index$date)
-  cat(".")
-  # Keep only the rows in df where the date is also present in df_index
-  df <- df[df$date %in% df_index$date, ]
+  df2$date <- lubridate::ymd(df2$date)
 
+  cat(".")
 
   if (!is.null(type)) {
     df <- df[df$type==type,]
@@ -168,19 +157,22 @@ query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, dat
   if (!is.null(date_start) || !is.null(date_end)) {
     # Convert the 'date' column to Date format
     df$date <- lubridate::ymd(df$date)
+    df2$date <- lubridate::ymd(df2$date)
 
     # Apply date filters
     if (!is.null(date_start)) {
       df <- df[df$date >= lubridate::ymd(date_start),]
+      df2 <- df2[df2$date >= lubridate::ymd(date_start),]
     }
 
     if (!is.null(date_end)) {
       df <- df[df$date <= lubridate::ymd(date_end),]
+      df2 <- df2[df2$date <= lubridate::ymd(date_end),]
     }
     cat(".")
   }
   cat(".OK!\n")
-  return(df)
+  return(rbind(df, df2))
 }
 
 #' Load a GeoTIFF file and convert it to a matrix
