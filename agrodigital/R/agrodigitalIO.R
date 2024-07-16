@@ -144,7 +144,6 @@ query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, dat
   colnames(df2) <- names(data2[[1]])
   cat(".")
 
-
   # Convert the 'date' columns to Date format
   df$date <- lubridate::ymd(df$date)
   df2$date <- lubridate::ymd(df2$date)
@@ -181,17 +180,26 @@ query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, dat
 #' @return A matrix representation of the GeoTIFF data.
 #' @export
 load_geotiff <- function(url) {
-  # Download the file to a temporary location
-  temp_file <- tempfile(fileext = ".tif")
-  download.file(url, temp_file, mode = "wb")
+  m <- as.matrix(0)
+  tryCatch(
+        #try to do this
+        {
+          # Download the file to a temporary location
+          temp_file <- tempfile(fileext = ".tif")
+          download.file(url, temp_file, mode = "wb")
 
-  # Load the GeoTIFF file as a raster
-  r <- raster::raster(temp_file)
+          # Load the GeoTIFF file as a raster
+          r <- raster::raster(temp_file)
 
-  # Convert the raster to a matrix
-  m <- raster::as.matrix(r)
-
-  return(m)
+          # Convert the raster to a matrix
+          m <- raster::as.matrix(r)
+        },
+        #if an error occurs, tell me the error
+        error=function(e) {
+            m <- as.matrix(0)
+        }
+    )
+    return(m)
 }
 
 
@@ -202,7 +210,7 @@ load_geotiff <- function(url) {
 #' @export
 download_rasters <- function(rasters) {
   # Get the number of cores
-  num_cores <- parallel::detectCores()
+  num_cores <- (parallel::detectCores() - 1)
 
   # Create a cluster of workers
   cl <- parallel::makeCluster(num_cores)
