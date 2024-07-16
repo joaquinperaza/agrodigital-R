@@ -152,6 +152,7 @@ query_rasters <- function(field_id, sources, type = NULL, date_start = NULL, dat
 
   if (!is.null(type)) {
     df <- df[df$type==type,]
+    df2 <- df2[df2$type==type,]
   }
   if (!is.null(date_start) || !is.null(date_end)) {
     # Convert the 'date' column to Date format
@@ -217,7 +218,7 @@ download_rasters <- function(rasters) {
 
   # Export the load_geotiff function and the rasters$url variable to the workers
   parallel::clusterExport(cl, list("load_geotiff", "rasters"))
-
+  print("Downloading rasters in cluster mode...")
   # Download the rasters in parallel
   matrices <- parallel::parLapply(cl, rasters$url, load_geotiff)
 
